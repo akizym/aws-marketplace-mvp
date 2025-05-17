@@ -1,7 +1,7 @@
 namespace CreateOrder;
 public static class PaymentService
 {
-    public static async Task<(string paymentId, string paymentUrl)> CreatePaymentSessionAsync(string orderId, string provider, int amount, string currency)
+    public static async Task<(string paymentId, string paymentUrl)> CreatePaymentSessionAsync(string orderId, string provider)
     {
         // Simulate network delay
         await Task.Delay(200); // pretend we're calling Stripe or PayPal
