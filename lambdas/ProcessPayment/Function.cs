@@ -15,8 +15,15 @@ namespace ProcessPayment
     {
         public string PaymentId { get; set; } = string.Empty;
         public string OrderId { get; set; } = string.Empty;
-        public string Status { get; set; } 
+        public string Status { get; set; }
+        
         public string Provider { get; set; } 
+        
+        public string ReceiptUrl { get; set; }
+        
+        public string TransactionId { get; set; } = string.Empty;
+        
+        public string CustomerEmail { get; set; }
     }
 
     public class Function
@@ -67,8 +74,6 @@ namespace ProcessPayment
             };
             await ddb.TransactWriteItemsAsync(transactRequest);
             
-            
-
             // 3. Publish event to EventBridge
             var eventEntry = new PutEventsRequestEntry
             {
@@ -80,7 +85,7 @@ namespace ProcessPayment
 
             await eventBridge.PutEventsAsync(new PutEventsRequest
             {
-                Entries = new List<PutEventsRequestEntry> { eventEntry }
+                Entries = [eventEntry]
             });
 
             return new APIGatewayProxyResponse
@@ -91,7 +96,7 @@ namespace ProcessPayment
             };
         }
 
-        private static Update UpdateItemRequest(string table, (string k, string v) pair, string status)
+        private static Update UpdateItemRequest(string table, (string k, string v) pair, string status, bool allowCreate = false)
         {
             var update = new Update
             {
@@ -122,4 +127,6 @@ namespace ProcessPayment
                 Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } }
             };
     }
+    
+
 }

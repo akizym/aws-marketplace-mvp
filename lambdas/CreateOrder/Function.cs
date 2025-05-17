@@ -14,7 +14,7 @@ namespace CreateOrder
     public class OrderRequest
     {
         public string OrderId { get; set; } = string.Empty; 
-        public List<string> ItemIds { get; set; } = new();
+        public List<string> ItemIds { get; set; } = [];
         public string Currency { get; set; } = "EUR";
         public int TotalAmount { get; set; }
         public string CustomerEmail { get; set; } = string.Empty;

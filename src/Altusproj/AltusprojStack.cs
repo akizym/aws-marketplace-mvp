@@ -65,7 +65,7 @@ namespace Altusproj
 
             var createOrderLambda = CreateLambda("CreateOrder", "CreateOrder::CreateOrder.Function::FunctionHandler");
             var processPaymentLambda = CreateLambda("ProcessPayment", "ProcessPayment::ProcessPayment.Function::FunctionHandler");
-            // var triggerFulfillmentLambda = CreateLambda("TriggerFulfillment", "TriggerFulfillment::TriggerFulfillment.Function::FunctionHandler");
+            var triggerFulfillmentLambda = CreateLambda("TriggerFulfillment", "TriggerFulfillment::TriggerFulfillment.Function::FunctionHandler");
 
 
             
@@ -77,12 +77,15 @@ namespace Altusproj
             paymentsTable.GrantReadWriteData(processPaymentLambda);
             ordersTable.GrantReadWriteData(processPaymentLambda);
             
+            ordersTable.GrantReadWriteData(triggerFulfillmentLambda);
+            paymentsTable.GrantReadData(triggerFulfillmentLambda);
+            fulfillmentTable.GrantReadWriteData(triggerFulfillmentLambda);
+            
             bus.GrantPutEventsTo(processPaymentLambda);
             bus.GrantPutEventsTo(createOrderLambda);
-            // fulfillmentTable.GrantReadWriteData(triggerFulfillmentLambda);
+            bus.GrantPutEventsTo(triggerFulfillmentLambda);
 
             // 🌐 API Gateway
-
             var api = new RestApi(this, "AltusApi", new RestApiProps
             {
                 RestApiName = "Altus Order API",
@@ -95,17 +98,17 @@ namespace Altusproj
             var webhook = api.Root.AddResource("payment-webhook");
             webhook.AddMethod("POST", new LambdaIntegration(processPaymentLambda));
 
-            var orderCreatedDlq = new Queue(this, "OrderCreatedDlq", new QueueProps
+            var emailsDlq = new Queue(this, "EmailDlq", new QueueProps
             {
-                QueueName = "OrderCreatedDlq"
+                QueueName = "EmailDlq"
             });
             
-            var orderCreatedQueue = new Queue(this, "OrderCreatedQueue", new QueueProps
+            var emailQueue = new Queue(this, "EmailNotificationQueue", new QueueProps
             {
-                QueueName = "OrderCreatedQueue",
+                QueueName = "EmailNotificationQueue",
                 DeadLetterQueue = new DeadLetterQueue
                 {
-                    Queue = orderCreatedDlq,
+                    Queue = emailsDlq,
                     MaxReceiveCount = 5 // After 5 failed receives, message goes to DLQ
                 }
             });
@@ -115,8 +118,8 @@ namespace Altusproj
                 EventBus = bus,
                 EventPattern = new EventPattern
                 {
-                    Source = new[] { "market.orders" },
-                    DetailType = new[] { "OrderCreated" }
+                    Source = ["market.orders"],
+                    DetailType = ["OrderCreated", "OrderFulfilled"]
                 }
             });
 
@@ -126,12 +129,12 @@ namespace Altusproj
             );
             emailSenderLambda.AddToRolePolicy(new PolicyStatement(new PolicyStatementProps
             {
-                Actions = new[] { "ses:SendEmail", "ses:SendRawEmail" },
-                Resources = new[] { "*" } // Or limit to your verified SES identity/ARN
+                Actions = ["ses:SendEmail", "ses:SendRawEmail"],
+                Resources = ["*"] // Or limit to your verified SES identity/ARN
             }));
             
             // Add SQS Queue as target
-            orderCreatedRule.AddTarget(new SqsQueue(orderCreatedQueue, new SqsQueueProps
+            orderCreatedRule.AddTarget(new SqsQueue(emailQueue, new SqsQueueProps
             {
                 Message = RuleTargetInput.FromObject(new Dictionary<string, object>
                 {
@@ -140,22 +143,53 @@ namespace Altusproj
                 })
             }));
             
-            orderCreatedQueue.GrantConsumeMessages(emailSenderLambda);
+            emailQueue.GrantConsumeMessages(emailSenderLambda);
 
-            emailSenderLambda.AddEventSource(new SqsEventSource(orderCreatedQueue));
+            emailSenderLambda.AddEventSource(new SqsEventSource(emailQueue));
             
+            var fullfilmentDlq = new Queue(this, "FullfilmentDlq", new QueueProps
+            {
+                QueueName = "FullfilmentDlq"
+            });
             
-            // var rule = new Rule(this, "PaymentSucceededRule", new RuleProps
-            // {
-            //     EventBus = bus,
-            //     EventPattern = new EventPattern
-            //     {
-            //         DetailType = new[] { "PaymentSucceeded" }
-            //     }
-            // });
+            var fullfilmentQueue = new Queue(this, "FullfilmentQueue", new QueueProps
+            {
+                QueueName = "FullfilmentQueue",
+                DeadLetterQueue = new DeadLetterQueue
+                {
+                    Queue = fullfilmentDlq,
+                    MaxReceiveCount = 5 // After 5 failed receives, message goes to DLQ
+                }
+            });
+            
+            var paymentSuccessRule = new Rule(this, "PaymentSucceededRule", new RuleProps
+            {
+                EventBus = bus,
+                EventPattern = new EventPattern
+                {
+                    Source = ["market.payment"],
+                    DetailType = ["PaymentSucceeded"]
+                }
+            });
 
-            //rule.AddTarget(new Amazon.CDK.AWS.Events.Targets.LambdaFunction(triggerFulfillmentLambda));
 
+            paymentSuccessRule.AddTarget(new SqsQueue(fullfilmentQueue, new SqsQueueProps
+            {
+                Message = RuleTargetInput.FromEventPath("$.detail")
+            }));
+            
+            paymentSuccessRule.AddTarget(new SqsQueue(emailQueue, new SqsQueueProps
+            {
+                Message = RuleTargetInput.FromObject(new Dictionary<string, object>
+                {
+                    { "detail-type", EventField.FromPath("$.detail-type") },
+                    { "detail", EventField.FromPath("$.detail") }
+                })
+            }));
+
+            fullfilmentQueue.GrantConsumeMessages(triggerFulfillmentLambda);
+
+            triggerFulfillmentLambda.AddEventSource(new SqsEventSource(fullfilmentQueue));
         }
     }
 }
