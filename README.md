@@ -1,13 +1,15 @@
 # Altusproj
 
-This repository contains the source code and infrastructure configuration for the **Altusproj** system. It includes multiple AWS Lambda functions and a CDK (Cloud Development Kit) stack for deploying infrastructure to AWS.
+This repository contains the source code and infrastructure configuration for the test project for AltusNova, POC for digital marketplace order processing system. It includes multiple AWS Lambda functions and a CDK (Cloud Development Kit) stack for deploying infrastructure to AWS.
 
 ---
 
 ## Architecture
 
+Cloud Architecture Diagram
 ![Architecture Diagram](images/ArchitecureDiagram.png)
 
+Order Sequece Diagram
 ![Order Sequece Diagram](images/OrderSequece.png)
 
 ---
