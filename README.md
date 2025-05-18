@@ -1,6 +1,6 @@
-# Altusproj
+# AWS Marketplace POC
 
-This repository contains the source code and infrastructure configuration for the test project for AltusNova, POC for digital marketplace order processing system. It includes multiple AWS Lambda functions and a CDK (Cloud Development Kit) stack for deploying infrastructure to AWS.
+This repository contains the source code and infrastructure configuration for the test project for POC for digital marketplace order processing system. It includes multiple AWS Lambda functions and a CDK (Cloud Development Kit) stack for deploying infrastructure to AWS.
 
 ---
 
